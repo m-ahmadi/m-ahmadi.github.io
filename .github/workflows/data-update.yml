@@ -1,0 +1,25 @@
+name: data-update
+on:
+  schedule:
+    - cron: '30 19 * * *'
+  workflow_dispatch:
+jobs:
+  data_update:
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22.x'
+    - run: npm install
+    - run: npm run update && npm run data
+    - run: |
+        git config user.email "ahmdee18@gmail.com"
+        git config user.name "m-ahmadi"
+        git add .
+        git commit -m "data update"
+        git push origin master

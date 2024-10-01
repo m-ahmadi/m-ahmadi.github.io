@@ -1,0 +1,25 @@
+name: data-rebase
+on:
+  schedule:
+    - cron: '30 14 1 * *'
+  workflow_dispatch:
+jobs:
+  data_rebase:
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22.x'
+    - run: npm install
+    - run: npm run rebase
+    - run: |
+        git config user.email "ahmdee18@gmail.com"
+        git config user.name "m-ahmadi"
+        git add .
+        git commit -m "data rebase"
+        git push origin master
