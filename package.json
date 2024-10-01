@@ -1,0 +1,20 @@
+{
+	"name": "m-ahmadi.github.io",
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"page_libs": "node page_libs/_get.js",
+		"base": "node scripts/get-raw-base.js && node scripts/gen-base.js",
+		"update": "node scripts/get-update.js",
+		"data": "node scripts/gen-data",
+		"rebase": "node scripts/rebase.js",
+		"start": "npm run base && npm run data"
+	},
+	"dependencies": {
+		"dequal": "^2.0.3",
+		"jalaali-js": "^1.2.7",
+		"node-html-parser": "^6.1.13",
+		"tabulator-tables": "^6.3.0",
+		"uplot": "^1.6.30"
+	}
+}
