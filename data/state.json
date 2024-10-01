@@ -1,0 +1,54 @@
+{
+  "1": {
+    "base": {
+      "start": "13861101",
+      "end": "14030710"
+    },
+    "update": {
+      "start": "",
+      "end": ""
+    }
+  },
+  "2": {
+    "base": {
+      "start": "13971127",
+      "end": "14030529"
+    },
+    "update": {
+      "start": "",
+      "end": ""
+    }
+  },
+  "3": {
+    "base": {
+      "start": "13900905",
+      "end": "14030709"
+    },
+    "update": {
+      "start": "",
+      "end": ""
+    }
+  },
+  "4": {
+    "base": {
+      "start": "13571229",
+      "end": "13901130"
+    },
+    "update": {
+      "start": "",
+      "end": ""
+    },
+    "unupdatable": true
+  },
+  "5": {
+    "base": {
+      "start": "13571229",
+      "end": "13961229"
+    },
+    "update": {
+      "start": "",
+      "end": ""
+    },
+    "unupdatable": true
+  }
+}
