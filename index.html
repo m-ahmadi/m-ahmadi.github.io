@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, maximum-scale=1.0" />
+	<link rel="stylesheet" href="page_libs/uPlot.min.css" />
+	<link rel="stylesheet" href="page_libs/tabulator.min.css" />
+	<title>بررسی داده‌های منابع مختلف</title>
+	<style>
+		body {font-family: Tahoma;}
+		.charts {direction: ltr;}
+	</style>
+</head>
+<body>
+
+
+<div>
+	<h1 style="text-align: center;">بررسی داده‌های منابع مختلف قیمت روزانه دلار</h1>
+	
+	<h3>جدول زیر حاوی برخی اطلاعات گزارشی راجع به داده‌های هر منبع می‌باشد.</h3>
+	<div id="table1"></div>
+
+	<h3>نمودار زیر حاوی تجمیع تمام نقاط داده‌ موجود در منابع به همراه میانگین آنها (داده نهایی) می‌باشد. </h3>
+	<p>در روزهایی که چند داده برای آن وجود دارد، میانگین داده‌ها گرفته می‌شود.<br>
+	این میانگین همان داده نهایی می‌باشد.<br>
+	قابل ذکر است که در این نمودار قیمت پایانی استفاده شده است.</p>
+	<div id="chart1" class="charts"></div>
+
+	<p>نمودار زیر فاصله روزهای داده‌ها در نمودار بالا می‌باشد.</p>
+	<div id="chart2" class="charts"></div>
+</div>
+
+
+<script src="page_libs/jalaali.min.js"></script>
+<script type="module">
+// setting things up
+import uPlot from './page_libs/uPlot.esm.js';
+import { dequal } from './page_libs/dequal.esm.js';
+import { Tabulator, SortModule } from './page_libs/tabulator_esm.min.js'
+import { s2t, t2s, t2j, j2d, sum, round, dash } from './scripts/util.js';
+import schemas from './scripts/datasource-schemas.js';
+Tabulator.registerModule([SortModule]);
+
+// load data
+const dataState = get('data/state.json');
+const srcs = ['1', '2', '3', '4', '5'];
+const schemasById = new Map(schemas.map(i=>[i.id, i]));
+const ds = [];
+for (const src of srcs) {
+	const srcId = src.split('-')[0];
+	const schema = schemasById.get(srcId);
+	const {rowTransformer, dataTransformer, rawDataConcatter, updatable} = schema;
+	const {base, update} = dataState[src];
+	const hasBase = base.start && base.end;
+	const hasUpdate = update.start && update.end;
+	const emptyShape = rawDataConcatter ? {} : [];
+	const rawBaseData = hasBase ? get('data/base/raw/'+src+'.json') : emptyShape;
+	const rawUpd8Data = updatable && hasUpdate ? get('data/update/raw/'+src+'.json') : emptyShape;
+	const dataRaw = rawDataConcatter
+		? rawDataConcatter(rawBaseData, rawUpd8Data)
+		: [...rawBaseData, ...rawUpd8Data];
+	const dataRdy = dataTransformer(dataRaw, rowTransformer);
+	ds.push(dataRdy);
+}
+
+// aggregate all data into one mapping of "date to datapoints"
+const m = new Map();
+const all = ds.flat().toSorted((a,b)=>+a[1]-b[1]);
+for (const i of all) {
+	const [, d] = i;
+	if (!m.get(d)) m.set(d, []);
+	m.set(d, [...m.get(d), i]);
+};
+
+// load pre-built data
+const constructedData = get('data/dollar.json').slice(1);
+
+// check dates of aggregated data agains pre-built data (just-in-case test)
+if (!dequal([...m.keys()], constructedData.map(i=>i[1]))) throw Error('Something is wrong with data or its generator script.');
+
+// create report table
+const tableRows = ds.map((rows, idx) => {
+	if (!rows.length) return [srcs[idx], ...Array(6).fill('')];
+	const msPerDay = 24 * 60 * 60 * 1000;
+	const days = rows.map(i=>i[0]);
+	const dates = days.map(j2d);
+	const dayDiffs = dates.map((v,i,a) => i>0 ? (+v-a[i-1]) / msPerDay : '').slice(1);
+	const gaps = dayDiffs.filter(i => i > 1).map(i => i - 1);
+	const bounds = [days[0], days.at(-1)];
+	const [first, last] = bounds.map(j2d);
+	first.setDate(first.getDate() - 1);
+	const completeDays = (+last - first) / msPerDay;
+	const missingDays = sum(gaps);
+	const missdayRate = missingDays / completeDays;
+	return [ srcs[idx], ...bounds.map(dash), round(completeDays), days.length, round(missingDays), round(missdayRate,4) ];
+});
+const tableHeaders = ['منبع','تاریخ اولین روز','تاریخ آخرین روز','کل روزهای تقویمی','روزهای حاظر','روزهای غایب','درصد روزهای غایب'];
+makeTable(table1, tableRows, tableHeaders);
+
+// shape and format data into a form needed for the chart library
+const x = [...m.keys()].map(i => s2t(i));
+const indexByPriceType = {open: -5, high: -4, low: -3, close: -2}; // [..., o,h,l,c, ...]
+const priceIdx = indexByPriceType.close;
+const ys = [...Array(ds.length)].map((_,q) =>
+	[...m.values()].map(i => i.find(j=>j.at(-1)===q+1+'')?.at(priceIdx) || null)
+);
+
+// create charts
+const chartOptions = {
+	width: window.innerWidth - (window.innerWidth * 0.05),
+	height: 400,
+	scales: {x: {distr: 2}}, // remove gaps in time axis
+	cursor: {sync: {key: 'a'}}, // sync cursor between two charts
+};
+const chartDateFmtter = (u, timestamp) => t2j(timestamp, '-');
+new uPlot({...chartOptions,
+	series:[
+		{label: 'تاریخ', value: chartDateFmtter},
+		{stroke: 'black',   label: 'منبع یک'},
+		{stroke: 'blue',    label: 'منبع دو'},
+		{stroke: 'red',     label: 'منبع سه'},
+		{stroke: 'orange',  label: 'منبع چهار', points: {size: 4, space: 0}},
+		{stroke: 'magenta', label: 'منبع پنح',  points: {size: 4, space: 0}},
+		{stroke: 'green',   label: 'میانگین'},
+	]},
+	[x,...ys, constructedData.map(i=>i.at(-1))],
+	document.getElementById('chart1'),
+);
+const dayDiffs = x.map((v,i,a) => i>0 ? (v-a[i-1]) / (24*60*60) : 0);
+new uPlot({...chartOptions, height: 150,
+	series:[{label: 'تاریخ', value: chartDateFmtter}, {stroke: 'black'}]},
+	[x, dayDiffs],
+	document.getElementById('chart2'),
+);
+
+// util
+function get(url) {
+	const xhr = new XMLHttpRequest();
+	xhr.open('GET', url, false);
+	xhr.send(null);
+	return JSON.parse(xhr.responseText);
+}
+function makeTable(elem, rows, headers) {
+	const data = rows.map(row => Object.fromEntries(
+		headers.map((header,i) => [ header, row[i] ])
+	));
+	const columns = headers.map(i => ({title: i, field: i}));
+	new Tabulator(elem, {data, columns});
+}
+</script>
+</body>
+</html>
